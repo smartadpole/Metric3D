@@ -37,9 +37,15 @@ def save_val_imgs(
     """
     Save GT, predictions, RGB in the same file.
     """
+    target_none = target is None
+    target = target if target is not None else torch.ones_like(pred, device=pred.device)
+
     rgb, pred_scale, target_scale, pred_color, target_color = get_data_for_log(pred, target, rgb)
     rgb = rgb.transpose((1, 2, 0))
-    cat_img = np.concatenate([rgb, pred_color, target_color], axis=0)
+    if target_none:
+        cat_img = np.concatenate([rgb, pred_color], axis=0)
+    else:
+        cat_img = np.concatenate([rgb, pred_color, target_color], axis=0)
     plt.imsave(os.path.join(save_dir, filename[:-4]+'_merge.jpg'), cat_img)
 
     # save to tensorboard

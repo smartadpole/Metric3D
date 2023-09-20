@@ -10,6 +10,7 @@ from tqdm import tqdm
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
+from utils.file import MkdirSimple, Walk
 
 from mono.utils.unproj_pcd import reconstruct_pcd, save_point_cloud
 
@@ -219,6 +220,76 @@ def transform_test_data_scalecano(rgb, intrinsic, data_basic):
     ]
     return rgb, cam_model_stacks, pad, label_scale_factor
 
+
+def GetDepthImg(img):
+    depth_img_rest = img.copy()
+    depth_img_R = depth_img_rest.copy()
+    depth_img_R[depth_img_rest > 255] = 255
+    depth_img_rest[depth_img_rest < 255] = 255
+    depth_img_rest -= 255
+    depth_img_G = depth_img_rest.copy()
+    depth_img_G[depth_img_rest > 255] = 255
+    depth_img_rest[depth_img_rest < 255] = 255
+    depth_img_rest -= 255
+    depth_img_B = depth_img_rest.copy()
+    depth_img_B[depth_img_rest > 255] = 255
+    depth_img_rgb = np.stack([depth_img_R, depth_img_G, depth_img_B], axis=2)
+    return depth_img_rgb.astype(np.uint8)
+
+def WriteDepth(depth, limg, path, name):
+    name = os.path.splitext(name)[0] + ".png"
+    output_concat_color = os.path.join(path, "concat_color", name)
+    output_concat_gray = os.path.join(path, "concat_gray", name)
+    output_gray = os.path.join(path, "gray", name)
+    output_disp = os.path.join(path, "disp", name)
+    output_depth = os.path.join(path, "depth", name)
+    output_color = os.path.join(path, "color", name)
+    output_concat_depth = os.path.join(path, "concat_depth", name)
+    output_concat = os.path.join(path, "concat", name)
+    output_display = os.path.join(path, "display", name)
+    MkdirSimple(output_concat_color)
+    MkdirSimple(output_concat_gray)
+    MkdirSimple(output_concat_depth)
+    MkdirSimple(output_gray)
+    MkdirSimple(output_depth)
+    MkdirSimple(output_color)
+    MkdirSimple(output_concat)
+    MkdirSimple(output_display)
+    MkdirSimple(output_disp)
+
+    predict_np = depth.squeeze().cpu().numpy()
+    print(predict_np.max(), " ", predict_np.min())
+
+
+    predict_np_scale = predict_np * 256
+    predict_np_scale = predict_np_scale.astype(np.uint16)
+    cv2.imwrite(output_disp, predict_np_scale)
+
+    predict_scale = (predict_np - np.min(predict_np))* 255 / (np.max(predict_np) - np.min(predict_np))
+
+    predict_scale = predict_scale.astype(np.uint8)
+    predict_np_int = predict_scale
+    color_img = cv2.applyColorMap(predict_np_int, cv2.COLORMAP_HOT)
+    limg_cv = limg  # cv2.cvtColor(np.asarray(limg), cv2.COLOR_RGB2BGR)
+    concat_img_color = np.vstack([limg_cv, color_img])
+    predict_np_rgb = np.stack([predict_np, predict_np, predict_np], axis=2)
+    concat_img_gray = np.vstack([limg_cv, predict_np_rgb])
+
+    # get depth
+    depth_img_rgb = GetDepthImg(predict_np)
+    concat_img_depth = np.vstack([limg_cv, depth_img_rgb])
+    concat = np.hstack([np.vstack([limg_cv, color_img]), np.vstack([predict_np_rgb, depth_img_rgb])])
+
+    cv2.imwrite(output_concat_color, concat_img_color)
+    cv2.imwrite(output_concat_gray, concat_img_gray)
+    cv2.imwrite(output_color, color_img)
+
+    cv2.imwrite(output_gray, predict_np)
+    cv2.imwrite(output_depth, depth_img_rgb)
+    cv2.imwrite(output_concat_depth, concat_img_depth)
+    cv2.imwrite(output_concat, concat)
+
+
 def do_scalecano_test_with_custom_data(
     model: torch.nn.Module,
     cfg: dict,
@@ -286,10 +357,12 @@ def do_scalecano_test_with_custom_data(
             std = torch.tensor([58.395, 57.12, 57.375]).float()[:, None, None].to(rgb_torch.device)
             rgb_torch = torch.div((rgb_torch - mean), std)
 
+            WriteDepth(pred_depth, rgb_origin, save_imgs_dir, osp.join(an['folder'], an['filename']))
+
             save_val_imgs(
                 i,
                 pred_depth,
-                gt_depth if gt_depth is not None else torch.ones_like(pred_depth, device=pred_depth.device),
+                gt_depth,
                 rgb_torch,
                 osp.join(an['folder'], an['filename']),
                 save_imgs_dir,

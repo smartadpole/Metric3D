@@ -2,6 +2,7 @@ import glob
 import os
 import json
 import cv2
+from utils.file import Walk
 
 def load_from_annos(anno_path):
     with open(anno_path, 'r') as f:
@@ -26,6 +27,6 @@ def load_from_annos(anno_path):
     return datas
 
 def load_data(path: str):
-    rgbs = glob.glob(path + '/*.jpg') + glob.glob(path + '/*.png')
+    rgbs = Walk(path, ['jpg', 'png'])
     data = [{'rgb':i, 'depth':None, 'intrinsic': None, 'filename':os.path.basename(i), 'folder': i.split('/')[-3]} for i in rgbs]
     return data

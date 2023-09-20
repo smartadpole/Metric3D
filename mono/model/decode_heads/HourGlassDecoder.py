@@ -234,7 +234,7 @@ class HourglassDecoder(nn.Module):
 
     def create_mesh_grid(self, height, width, batch, device="cuda", set_buffer=True):
         y, x = torch.meshgrid([torch.arange(0, height, dtype=torch.float32, device=device),
-                               torch.arange(0, width, dtype=torch.float32, device=device)], indexing='ij')
+                               torch.arange(0, width, dtype=torch.float32, device=device)])
         meshgrid = torch.stack((x, y))
         meshgrid = meshgrid.unsqueeze(0).repeat(batch, 1, 1, 1)
         return meshgrid
